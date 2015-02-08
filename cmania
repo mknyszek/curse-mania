@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/bin/python3
 
 import curses
 from curses import wrapper
@@ -75,8 +75,8 @@ def main(stdscr):
     stdscr.clear()
     stdscr.nodelay(1)
 
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-
+    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
+    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_GREEN)
 
     # def gameLoop():
     #     threading.Timer(1/30.0, gameLoop).start()
@@ -98,20 +98,26 @@ def main(stdscr):
 
     # gameLoop()
     keys.append([2,1])
+    delay = 10
     while 1:
         time.sleep(1/30.0)
-        addNote(randint(0,3))
+
+        delay -= 1
+        if delay==0:
+            addNote(randint(0,3))
+            delay = 10
+
         keyNum = stdscr.getch()
         stdscr.clear()
-        if keyNum == ord('w'):
-            playerPos = (playerPos[0]-1, playerPos[1])
-        elif keyNum == ord('s'):
-            playerPos = (playerPos[0]+1, playerPos[1])
-        elif keyNum == ord('a'):
-            playerPos = (playerPos[0], playerPos[1]-1)
-        elif keyNum == ord('d'):
-            playerPos = (playerPos[0], playerPos[1]+1)
-        elif keyNum == ord('q'):
+        # if keyNum == ord('w'):
+        #     playerPos = (playerPos[0]-1, playerPos[1])
+        # elif keyNum == ord('s'):
+        #     playerPos = (playerPos[0]+1, playerPos[1])
+        # elif keyNum == ord('a'):
+        #     playerPos = (playerPos[0], playerPos[1]-1)
+        # elif keyNum == ord('d'):
+        #     playerPos = (playerPos[0], playerPos[1]+1)
+        if keyNum == ord('q'):
             break
 
         renderArt(stdscr)
@@ -123,6 +129,10 @@ def main(stdscr):
                 keys.remove(key)
                 stdscr.addstr(HEIGHT-3, key[0]*10 + startingBumpersIndex, "------", curses.color_pair(1))
 
+            elif key[1] < HEIGHT-3 and key[1] > HEIGHT-13:
+                if keyNum == ord(str(key[0]+1)):
+                    keys.remove(key)
+                    stdscr.addstr(HEIGHT-3, key[0]*10 + startingBumpersIndex, "------", curses.color_pair(2))
 
 
 
