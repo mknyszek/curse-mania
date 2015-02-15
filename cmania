@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/bin/python3
 
 import curses
 from curses import wrapper
@@ -10,10 +10,14 @@ import sys
 import threading
 from random import randint
 
-HEIGHT = 50
+HEIGHT = 40
 WIDTH = 80
+KEY_DELAY = 6
+SPACING = 13
+BUMPERS_INDEX = 16
+
 keys = []
-startingBumpersIndex = 20
+keyDown = -1
 
 def playWAVFile(filename):
     wf = wave.open(filename, 'rb')
@@ -41,9 +45,6 @@ def playWAVFile(filename):
 
     p.terminate()
 
-def renderPlayer(stdscr,pos):
-    stdscr.addstr(pos[0], pos[1], "0", curses.A_REVERSE)
-
 def renderBorder(stdscr):
     borderChar = " "
     for i in range(0,WIDTH-1):
@@ -53,14 +54,19 @@ def renderBorder(stdscr):
         stdscr.addstr(i, 0, borderChar, curses.A_REVERSE)
         stdscr.addstr(i, WIDTH-2, borderChar, curses.A_REVERSE)
 
-def renderArt(stdscr):
-    stdscr.addstr(HEIGHT-3, startingBumpersIndex, "------")
-    stdscr.addstr(HEIGHT-3, startingBumpersIndex+10, "------")
-    stdscr.addstr(HEIGHT-3, startingBumpersIndex+20, "------")
-    stdscr.addstr(HEIGHT-3, startingBumpersIndex+30, "------")
-    
-def gameLoop():
-    threading.Timer(1/30.0, gameLoop).start()
+def renderBumpers(stdscr, colorcode):
+    start = 3
+    for i in range(4):
+        for j in range(5):
+            if j == 2:
+                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING, "+")
+                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+5, "+")
+            else:
+                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING, "|")
+                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+5, "|")
+            if colorcode[i]:
+                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+1, "    ", curses.color_pair(colorcode[i]))
+             
 
 def addNote(index):
     keys.append([index, 1])
@@ -68,7 +74,6 @@ def addNote(index):
 def main(stdscr):
     curses.start_color()
 
-    playerPos = (2,2)
     curses.resizeterm(HEIGHT, WIDTH)
 
     curses.curs_set(0)
@@ -78,65 +83,64 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_GREEN)
 
-    # def gameLoop():
-    #     threading.Timer(1/30.0, gameLoop).start()
-    #     keyNum = stdscr.getch()
-    #     stdscr.clear()
-    #     if keyNum == ord('w'):
-    #         playerPos = (playerPos[0]-1, playerPos[1])
-    #     elif keyNum == ord('s'):
-    #         playerPos = (playerPos[0]+1, playerPos[1])
-    #     elif keyNum == ord('a'):
-    #         playerPos = (playerPos[0], playerPos[1]-1)
-    #     elif keyNum == ord('d'):
-    #         playerPos = (playerPos[0], playerPos[1]+1)
-    #     elif keyNum == ord('q'):
-    #         sys.exit()
-    #     # stdscr.addstr(2, 2, "A", curses.A_REVERSE)
-    #     renderPlayer(stdscr, playerPos)
-    #     renderBorder(stdscr)
-
-    # gameLoop()
     keys.append([2,1])
-    delay = 10
+    noteDelay = 10
+    keyDelay = KEY_DELAY
+    
     while 1:
         time.sleep(1/30.0)
 
-        delay -= 1
-        if delay==0:
+        colorcode = [0, 0, 0, 0]
+        
+        noteDelay -= 1
+        if noteDelay == 0:
             addNote(randint(0,3))
-            delay = 10
+            noteDelay = 10
 
         keyNum = stdscr.getch()
         stdscr.clear()
-        # if keyNum == ord('w'):
-        #     playerPos = (playerPos[0]-1, playerPos[1])
-        # elif keyNum == ord('s'):
-        #     playerPos = (playerPos[0]+1, playerPos[1])
-        # elif keyNum == ord('a'):
-        #     playerPos = (playerPos[0], playerPos[1]-1)
-        # elif keyNum == ord('d'):
-        #     playerPos = (playerPos[0], playerPos[1]+1)
+        
+        if keyNum == -1 and keyDelay > 0:
+            keyDelay -= 1
+            keyNum = keyPrev
+        elif keyNum == ord('d'):
+            keyDelay = KEY_DELAY
+            keyNum = 0
+        elif keyNum == ord('f'):
+            keyDelay = KEY_DELAY
+            keyNum = 1
+        elif keyNum == ord('j'):
+            keyDelay = KEY_DELAY
+            keyNum = 2
+        elif keyNum == ord('k'):
+            keyDelay = KEY_DELAY
+            keyNum = 3
         if keyNum == ord('q'):
             break
-
-        renderArt(stdscr)
+        
+        keyPrev = keyNum
+        
+        stdscr.addstr(2, 2, str(keyNum))
+        
+        for key in keys:
+            key[1] += 1
+            if key[1] >= HEIGHT-1:
+                keys[0] = -1
+                colorcode[key[0]] = 1
+            elif key[1] < HEIGHT-1 and key[1] > HEIGHT-8:
+                if keyNum == key[0]:
+                    keys[0] = -1
+                    colorcode[key[0]] = 2
+                else:
+                    stdscr.addstr(int(key[1]), key[0]*SPACING + BUMPERS_INDEX, " ++++ ")
+            else:
+                stdscr.addstr(int(key[1]), key[0]*SPACING + BUMPERS_INDEX, " ++++ ")
 
         for key in keys:
-            stdscr.addstr(int(key[1]), key[0]*10 + startingBumpersIndex, " ++++ ")
-            key[1] += 1
-            if key[1] > HEIGHT-3:
+            if keys[0] == -1:
                 keys.remove(key)
-                stdscr.addstr(HEIGHT-3, key[0]*10 + startingBumpersIndex, "------", curses.color_pair(1))
 
-            elif key[1] < HEIGHT-3 and key[1] > HEIGHT-13:
-                if keyNum == ord(str(key[0]+1)):
-                    keys.remove(key)
-                    stdscr.addstr(HEIGHT-3, key[0]*10 + startingBumpersIndex, "------", curses.color_pair(2))
-
-
-
-        renderPlayer(stdscr, playerPos)
+        renderBumpers(stdscr, colorcode)
         renderBorder(stdscr)
 
         stdscr.refresh()
