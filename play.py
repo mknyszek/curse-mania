@@ -5,9 +5,8 @@ import audio
 import song_util
 
 THRESHOLD = 0.04
-OFFSET = 0.00
 
-def start_song(song_file_name, note_callback=lambda note, time_window: None):
+def start_song(song_file_name, offset, note_callback=lambda note: None):
     global start_point
 
     song = song_util.load(song_file_name)
@@ -21,13 +20,13 @@ def start_song(song_file_name, note_callback=lambda note, time_window: None):
             start_point = stream.get_time()
 
         if len(time_points) > 0:
-            time = stream.get_time() - start_point
+            time = stream.get_time() - start_point + offset
             note = time_points[0][0]
             time_point = time_points[0][1]
 
             if time >= time_point - THRESHOLD:
                 if time <= time_point + THRESHOLD:
-                    note_callback(note, THRESHOLD * 2)
+                    note_callback(note)
                 del time_points[0]
 
     (wave_file, player, stream) = audio.play_song(song['file_name'], audio_callback)
@@ -39,5 +38,5 @@ def end_playback(wf, p, stream):
 
     p.terminate()
 
-def debug_callback(note, time_window):
+def debug_callback(note):
     print(note)

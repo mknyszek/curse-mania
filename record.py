@@ -2,6 +2,7 @@ from curses import wrapper
 import sys
 
 import audio
+import play
 import song_util
 
 def main(stdscr):
