@@ -8,6 +8,8 @@ import wave
 import time
 import sys
 import threading
+import queue
+import play
 from random import randint
 
 HEIGHT = 40
@@ -17,6 +19,7 @@ SPACING = 13
 BUMPERS_INDEX = 16
 
 keys = []
+noteStream = queue.Queue()
 keyDown = -1
 
 def playWAVFile(filename):
@@ -67,6 +70,8 @@ def renderBumpers(stdscr, colorcode):
             if colorcode[i]:
                 stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+1, "    ", curses.color_pair(colorcode[i]))
              
+def pushNote(note):
+    noteStream.put(note)
 
 def addNote(index):
     keys.append([index, 1])
@@ -84,18 +89,16 @@ def main(stdscr):
     curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_GREEN)
 
     keys.append([2,1])
-    noteDelay = 10
     keyDelay = KEY_DELAY
     
+    play.start_song(sys.argv[1], (HEIGHT-5.0) / 30.0, pushNote)
     while 1:
         time.sleep(1/30.0)
 
         colorcode = [0, 0, 0, 0]
         
-        noteDelay -= 1
-        if noteDelay == 0:
-            addNote(randint(0,3))
-            noteDelay = 10
+        if not noteStream.empty():
+            addNote(noteStream.get())
 
         keyNum = stdscr.getch()
         stdscr.clear()
