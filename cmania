@@ -9,144 +9,162 @@ import time
 import sys
 import threading
 import queue
-import play
+from os import listdir
+from os.path import isfile, join
 from random import randint
 
-HEIGHT = 40
-WIDTH = 80
-KEY_DELAY = 6
-SPACING = 13
-BUMPERS_INDEX = 16
+from util import game
+from util import record
+from util import play
+from util import audio
+from util import song_util
 
-keys = []
-noteStream = queue.Queue()
-keyDown = -1
+TITLE_W = 42
+TITLE_H = 11
+TITLE_ART = """
+   ______                                
+  / ____/__  __ _____ _____ ___          
+ / /    / / / // ___// ___// _ \         
+/ /___ / /_/ // /   (__  )/  __/         
+\____/ \__,_//_/   /____/ \___/          
+    __  ___               _         __ __
+   /  |/  /____ _ ____   (_)____ _ / // /
+  / /|_/ // __ `// __ \ / // __ `// // / 
+ / /  / // /_/ // / / // // /_/ //_//_/  
+/_/  /_/ \__,_//_/ /_//_/ \__,_/(_)(_)
+"""
 
-def playWAVFile(filename):
-    wf = wave.open(filename, 'rb')
+CREDITS_W = 51
+CREDITS_H = 4
+CREDITS_ART = """
+          Upsilon Pi Epsilon, UC Berkeley         
+Alexander Kang, Michael Knyszek, Patrick McGartoll
+                  Created 2015                    
+"""
 
-    p = pyaudio.PyAudio()
+def renderTitleArt(stdscr):
+    height, width = stdscr.getmaxyx()
+    y = height // 3 - TITLE_H // 2
+    x = width // 2 - TITLE_W // 2
+    for line in TITLE_ART.split("\n"):
+        stdscr.addstr(y, x, line, curses.A_BOLD)
+        y += 1
+    return (y, x)
 
-    def callback(in_data, frame_count, time_info, status):
-        data = wf.readframes(frame_count)
-        return (data, pyaudio.paContinue)
+def renderCreditsArt(stdscr, y, x):
+    for line in CREDITS_ART.split("\n"):
+        stdscr.addstr(y, x, line)
+        y += 1
 
-    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                    channels=wf.getnchannels(),
-                    rate=wf.getframerate(),
-                    output=True,
-                    stream_callback=callback)
+def renderTitleMenu(stdscr, menu, selected, y, x):
+    r = y
+    for i in range(len(menu)):
+        if i == selected:
+            stdscr.addstr(r, x, ">")
+            stdscr.addstr(r, x + 2, menu[i], curses.A_BOLD)
+        else:
+            stdscr.addstr(r, x + 2, menu[i])
+        r += 1
 
-    stream.start_stream()
+def renderFooter(stdscr):
+    height, width = stdscr.getmaxyx()
+    s = "q - Quit | Arrow Keys - Menu Selection | a - Continue | Game Controls - d f j k"
+    stdscr.addstr(height-1, width // 2 - len(s) // 2, s)
 
-    while stream.is_active():
-        time.sleep(0.1)
+# title is the title of the file menu you want
+# location is the folder in which you'll be viewing files
+# extension is the extension to filter by
+# action is a function that takes stdscr and a file name
+#   action, for example, is playing the game or recording notes for a song
 
-    stream.stop_stream()
-    stream.close()
-    wf.close()
-
-    p.terminate()
-
-def renderBorder(stdscr):
-    borderChar = " "
-    for i in range(0,WIDTH-1):
-        stdscr.addstr(0, i, borderChar, curses.A_REVERSE)
-        stdscr.addstr(HEIGHT-1, i, borderChar, curses.A_REVERSE)
-    for i in range(1,HEIGHT-1):
-        stdscr.addstr(i, 0, borderChar, curses.A_REVERSE)
-        stdscr.addstr(i, WIDTH-2, borderChar, curses.A_REVERSE)
-
-def renderBumpers(stdscr, colorcode):
-    start = 3
-    for i in range(4):
-        for j in range(5):
-            if j == 2:
-                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING, "+")
-                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+5, "+")
-            else:
-                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING, "|")
-                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+5, "|")
-            if colorcode[i]:
-                stdscr.addstr(HEIGHT-start-j, BUMPERS_INDEX+i*SPACING+1, "    ", curses.color_pair(colorcode[i]))
-             
-def pushNote(note):
-    noteStream.put(note)
-
-def addNote(index):
-    keys.append([index, 1])
-
-def main(stdscr):
-    curses.start_color()
-
-    curses.resizeterm(HEIGHT, WIDTH)
-
-    curses.curs_set(0)
-    stdscr.clear()
-    stdscr.nodelay(1)
-
-    curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_RED)
-    curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_GREEN)
-
-    keys.append([2,1])
-    keyDelay = KEY_DELAY
+def file_menu(stdscr, title, location, extension, action):
+    height, width = stdscr.getmaxyx()
     
-    play.start_song(sys.argv[1], (HEIGHT-5.0) / 30.0, pushNote)
-    while 1:
-        time.sleep(1/30.0)
-
-        colorcode = [0, 0, 0, 0]
-        
-        if not noteStream.empty():
-            addNote(noteStream.get())
-
-        keyNum = stdscr.getch()
+    f_selected = 0
+    files = [f for f in listdir(location) if f.endswith(extension)]
+    
+    if len(files) == 0:
+        return
+    
+    files.sort()
+    view_top = 0
+    view_bot = min(len(files)-1, height-7)
+    
+    while True:
         stdscr.clear()
         
-        if keyNum == -1 and keyDelay > 0:
-            keyDelay -= 1
-            keyNum = keyPrev
-        elif keyNum == ord('d'):
-            keyDelay = KEY_DELAY
-            keyNum = 0
-        elif keyNum == ord('f'):
-            keyDelay = KEY_DELAY
-            keyNum = 1
-        elif keyNum == ord('j'):
-            keyDelay = KEY_DELAY
-            keyNum = 2
-        elif keyNum == ord('k'):
-            keyDelay = KEY_DELAY
-            keyNum = 3
-        if keyNum == ord('q'):
-            break
+        stdscr.addstr(1, width // 2 - len(title) // 2, title, curses.A_BOLD)
+        stdscr.addstr(3, 4, "Track Name", curses.A_BOLD)
         
-        keyPrev = keyNum
+        s = "Viewing Tracks " + str(view_top + 1) + " to " + str(view_bot + 1) + " of " + str(len(files))
+        stdscr.addstr(3, width - len(s) - 1, s)
         
-        stdscr.addstr(2, 2, str(keyNum))
-        
-        for key in keys:
-            key[1] += 1
-            if key[1] >= HEIGHT-1:
-                keys[0] = -1
-                colorcode[key[0]] = 1
-            elif key[1] < HEIGHT-1 and key[1] > HEIGHT-8:
-                if keyNum == key[0]:
-                    keys[0] = -1
-                    colorcode[key[0]] = 2
-                else:
-                    stdscr.addstr(int(key[1]), key[0]*SPACING + BUMPERS_INDEX, " ++++ ")
+        for i in range(width):
+            stdscr.addch(4, i, "-")
+            
+        j = 5
+        for i in range(view_top, view_bot+1):
+            if i == f_selected:
+                stdscr.addstr(j, 2, ">")
+                stdscr.addstr(j, 4, files[i], curses.A_BOLD)
             else:
-                stdscr.addstr(int(key[1]), key[0]*SPACING + BUMPERS_INDEX, " ++++ ")
+                stdscr.addstr(j, 4, files[i])
+            j += 1
+            
+        k = stdscr.getch()
+        if k == curses.KEY_DOWN:
+            if f_selected != len(files) - 1:
+                f_selected += 1
+                if f_selected > view_bot:
+                    view_bot += 1
+                    view_top += 1
+                    
+        elif k == curses.KEY_UP:
+            if f_selected != 0:
+                f_selected -= 1
+                if f_selected < view_top:
+                    view_bot -= 1
+                    view_top -= 1
+        
+        elif k == ord('a'):
+            action(stdscr, files[f_selected])
+        
+        elif k == ord('q'):
+            return
+       
 
-        for key in keys:
-            if keys[0] == -1:
-                keys.remove(key)
-
-        renderBumpers(stdscr, colorcode)
-        renderBorder(stdscr)
-
-        stdscr.refresh()
-
+def main(stdscr):
+    height, width = stdscr.getmaxyx()
     
+    mm_selected = 0
+    main_menu = ["Play", "Record", "Options"]
+    
+    while True:
+        
+        stdscr.clear()
+        
+        ta_y, ta_x = renderTitleArt(stdscr)
+        renderTitleMenu(stdscr, main_menu, mm_selected, ta_y + 3, ta_x + TITLE_W // 3)
+        renderCreditsArt(stdscr, ta_y + 9, width // 2 - CREDITS_W // 2)
+        renderFooter(stdscr)
+        
+        k = stdscr.getch()
+        
+        if k == curses.KEY_DOWN:
+            mm_selected = (mm_selected + 1) % len(main_menu) 
+            
+        elif k == curses.KEY_UP:
+            mm_selected = (mm_selected - 1) % len(main_menu)
+            
+        elif k == ord('a'):
+            selection = main_menu[mm_selected]
+            if selection == "Play":
+                file_menu(stdscr, "PLAY THE GAME!!", song_util.DIR_SONGS, ".txt", game.game)
+            elif selection == "Record":
+                file_menu(stdscr, "CHOOSE A SONG TO RECORD NOTES FOR", song_util.DIR_WAV, ".wav", record.record)
+                
+        elif k == ord('q'):
+            return
+        
+
 wrapper(main)
