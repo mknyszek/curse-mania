@@ -46,9 +46,11 @@ def renderBumpers(stdscr, bumpers_index, colorcode):
                 stdscr.addstr(height-start-j, bumpers_index+i*SPACING+1, "    ", curses.color_pair(colorcode[i]))
              
 def pushNote(note):
+    global noteStream
     noteStream.put(note)
 
 def addNote(index):
+    global keys
     keys.append([index, HEADER_SIZE])
     
 def cleanUp(stdscr, wave_file, player, stream):
@@ -56,6 +58,7 @@ def cleanUp(stdscr, wave_file, player, stream):
     play.end_playback(wave_file, player, stream)
 
 def game(stdscr, song_notes):
+    global keys
     height, width = stdscr.getmaxyx()
 
     bumpers_width = SPACING * 3 + 7
@@ -73,11 +76,10 @@ def game(stdscr, song_notes):
     score = 0
     chain = 0
 
-    keys.append([2,1])
     keyDelay = KEY_DELAY
     keyPrev = -1
     
-    (wf, player, stream) = play.start_song(song_notes, (height-4.0-HEADER_SIZE) / 30.0, pushNote)
+    (wf, player, stream) = play.start_song(song_notes, (height-3.0-HEADER_SIZE) / 30.0, pushNote)
     while 1:
         time.sleep(1/30.0)
 
@@ -104,48 +106,48 @@ def game(stdscr, song_notes):
         elif keyNum == ord('k'):
             keyDelay = KEY_DELAY
             keyNum = 3
-        if keyNum == ord('q'):
+        elif keyNum == ord('q'):
             cleanUp(stdscr, wf, player, stream)
             return
         
         keyPrev = keyNum
         
-        for key in keys:
-            if key[0] == -1 and key[1] == height-3:
+        loops = min(len(keys), 5)
+        
+        for i in range(loops):
+            if keys[i][0] == -1 and keys[i][1] == height-3:
                 cleanUp(stdscr, wf, player, stream)
                 return
-            elif key[0] == -1:
-                key[1] += 1
+            elif keys[i][0] == -1:
+                keys[i][1] += 1
                 continue
             
-            if key[1] >= height:
-                colorcode[key[0]] = 1
+            if keys[i][1] >= height:
+                colorcode[keys[i][0]] = 1
                 chain = 0
                 score -= 100
-                key[0] = DEL_KEY # Mark key for deletion
-            elif key[1] < height and key[1] > height-5:
-                if keyNum == key[0]:
-                    dist = abs(key[1] - height + 2)
-                    colorcode[key[0]] = 2 + dist
+                keys[i][0] = DEL_KEY # Mark key for deletion
+            elif keys[i][1] < height and keys[i][1] > height-5:
+                if keyNum == keys[i][0]:
+                    dist = abs(keys[i][1] - height + 2)
+                    colorcode[keys[i][0]] = 2 + dist
                     score += 100 + chain * 50 - dist * 25
                     chain += 1
-                    key[0] = DEL_KEY # Mark key for deletion
+                    keys[i][0] = DEL_KEY # Mark key for deletion
                 else:
-                    stdscr.addstr(int(key[1]), key[0]*SPACING + bumpers_index, " ++++ ")
+                    stdscr.addstr(int(keys[i][1]), keys[i][0]*SPACING + bumpers_index, " ++++ ")
             else:
-                stdscr.addstr(int(key[1]), key[0]*SPACING + bumpers_index, " ++++ ")
+                stdscr.addstr(int(keys[i][1]), keys[i][0]*SPACING + bumpers_index, " ++++ ")
             
-            key[1] += 1
+            keys[i][1] += 1
 
         # Delete marked keys
-        i = 0
-        while i < len(keys):
-            if keys[i][0] == DEL_KEY:
-                del keys[i]
-            else:
-                i += 1
+        new_keys = []
+        for key in keys:
+            if key[0] != DEL_KEY:
+                new_keys.append(key)
+                
+        keys = new_keys
 
         renderBumpers(stdscr, bumpers_index, colorcode)
         renderHead(stdscr, song_notes, score, chain)
-
-        stdscr.refresh()
