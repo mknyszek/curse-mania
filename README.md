@@ -4,15 +4,13 @@ Curse Mania is a Rhythm game embedded entirely in a terminal window using the Py
 
 ## How to Install
 
-Clone this repository using
-  git clone https://github.com/mknyszek/curse-mania.git
+Clone this repository using `git clone https://github.com/mknyszek/curse-mania.git`
 
-Then, start the game by typing
-  ./cmania
-in the repository's root.
+Then, start the game by typing `./cmania` in the repository's root.
 
 In order to fully enjoy the game, you need pyaudio installed in your Python distribution. One can do this through pip:
-  pip install pyaudio
+  
+`pip install pyaudio`
 
 ## How to Play
 
